@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+!.env.example
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Mypy
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Alembic
+# Keep alembic/versions tracked; ignore only local migration temp files
+
+# Celery beat schedule
+celerybeat-schedule*
+
+# Archives
+*.rar
+*.zip

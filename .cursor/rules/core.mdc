@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+
+RULE-000:
+This rule is always active.
+
+---
+
+RULE-001:
+Follow SOLID, DRY, SRP principles. Keep UI and core logic separated.
+High cohesion, low coupling.
+
+---
+
+RULE-002:
+This is the Email Auto-Processing Bot project.
+All commands run in Windows PowerShell. Ensure command compatibility.

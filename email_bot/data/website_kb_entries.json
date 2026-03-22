@@ -1,0 +1,20 @@
+[
+  {
+    "id": "example-faq-001",
+    "source_type": "inner_faq",
+    "title": "Example: How to reset software settings",
+    "lang": "en",
+    "category": "troubleshooting",
+    "url": "",
+    "content": "Q: How do I reset the software to default settings?\nA: Open the app > Go to Settings > Click 'Reset to Defaults' > Confirm the reset. This will restore all settings to their factory defaults without deleting your data."
+  },
+  {
+    "id": "example-faq-002",
+    "source_type": "inner_faq",
+    "title": "Example: System requirements",
+    "lang": "en",
+    "category": "installation",
+    "url": "",
+    "content": "Q: What are the system requirements?\nA: Windows 10 or later (64-bit), macOS 10.15 or later. Minimum 4GB RAM, 500MB disk space. Internet connection required for activation."
+  }
+]
