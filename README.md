@@ -1,6 +1,7 @@
-[English](#email-auto-processing-bot) | [中文](#邮件自动处理机器人)
+# Email Auto-Processing Bot / 邮件自动处理机器人
 
-# Email Auto-Processing Bot
+<details open>
+<summary><b>English</b></summary>
 
 An intelligent email customer service system powered by LLM (Large Language Model). It automatically receives, understands, and replies to customer emails, with a human-in-the-loop review mechanism for quality control.
 
@@ -465,9 +466,10 @@ OPENAI_MODEL=your-model-name
 
 MIT
 
----
+</details>
 
-# 邮件自动处理机器人
+<details>
+<summary><b>中文</b></summary>
 
 基于 LLM（大语言模型）的智能邮件客服系统。自动接收、理解并回复客户邮件，内置人工审核机制以保障回复质量。
 
@@ -931,3 +933,5 @@ OPENAI_MODEL=your-model-name
 ## 许可证
 
 MIT
+
+</details>
