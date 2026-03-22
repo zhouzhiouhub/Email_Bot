@@ -9,11 +9,12 @@ State machine flow:
       ├─ HUMAN_REVIEW → push_to_dingtalk → wait_human_review (interrupt)
       │                   ├─ approve/edit → send_reply → archive_training → END
       │                   └─ reject       → archive_training → END
+      │                        (email NOT marked read; 2-day cooldown then reopen)
       └─ MORE_INFO   → send_more_info_request → archive_training → END
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional, TypedDict
 
 import structlog
@@ -141,8 +142,15 @@ class ThreadStatusMachine:
 
 # ── Node helpers ───────────────────────────────────────────────────────────────
 
+REJECTION_COOLDOWN = timedelta(days=2)
+
+
 class AlreadyProcessedError(Exception):
     """Raised when a thread has already been fully processed (CLOSED/REPLIED)."""
+
+
+class RejectionCooldownError(Exception):
+    """Raised when a rejected thread is still within the 2-day cooldown window."""
 
 
 async def _get_or_create_thread(
@@ -167,10 +175,26 @@ async def _get_or_create_thread(
         db.add(thread)
         await db.flush()
     elif thread.status in (ThreadStatus.CLOSED, ThreadStatus.AUTO_REPLIED, ThreadStatus.REPLIED):
-        # Already fully handled — skip silently to avoid illegal state transitions
-        raise AlreadyProcessedError(
-            f"Thread {parsed.thread_id!r} already in status {thread.status}, skipping."
-        )
+        if thread.rejected_at is not None:
+            elapsed = datetime.now(timezone.utc) - thread.rejected_at
+            if elapsed < REJECTION_COOLDOWN:
+                raise RejectionCooldownError(
+                    f"Thread {parsed.thread_id!r} rejected {elapsed} ago, "
+                    f"cooldown expires in {REJECTION_COOLDOWN - elapsed}."
+                )
+            # Cooldown expired — reopen the thread for re-processing
+            log.info(
+                "thread_reopen_after_rejection_cooldown",
+                thread_id=parsed.thread_id,
+                rejected_at=thread.rejected_at.isoformat(),
+            )
+            thread.status = ThreadStatus.NEW
+            thread.rejected_at = None
+            thread.updated_at = datetime.now(timezone.utc)
+        else:
+            raise AlreadyProcessedError(
+                f"Thread {parsed.thread_id!r} already in status {thread.status}, skipping."
+            )
 
     return thread
 
@@ -180,6 +204,19 @@ async def _save_message(
     thread: EmailThread,
     parsed: ParsedEmail,
 ) -> EmailMessage:
+    from sqlalchemy import select
+
+    # Reopened threads may re-encounter the same message_id
+    if parsed.message_id:
+        existing = (
+            await db.execute(
+                select(EmailMessage).where(EmailMessage.message_id == parsed.message_id)
+            )
+        ).scalar_one_or_none()
+        if existing:
+            thread.last_message_at = datetime.now(timezone.utc)
+            return existing
+
     msg = EmailMessage(
         thread_id=thread.id,
         direction=MessageDirection.INBOUND,
@@ -224,9 +261,11 @@ async def node_parse_email(state: EmailState) -> dict:
     async with db_factory() as db:
         try:
             thread = await _get_or_create_thread(db, parsed)
+        except RejectionCooldownError as e:
+            log.info("thread_rejection_cooldown", reason=str(e))
+            return {"error": "rejection_cooldown", "thread_db_id": None, "message_db_id": None}
         except AlreadyProcessedError as e:
             log.info("thread_already_processed", reason=str(e))
-            # Return a sentinel that causes the graph to end early via error field
             return {"error": "already_processed", "thread_db_id": None, "message_db_id": None}
 
         try:
@@ -481,6 +520,7 @@ async def node_handle_review_outcome(state: EmailState) -> dict:
             ThreadStatusMachine.transition(thread, ThreadStatus.HUMAN_APPROVED)
         else:
             ThreadStatusMachine.transition(thread, ThreadStatus.HUMAN_REJECTED)
+            thread.rejected_at = datetime.now(timezone.utc)
 
         await db.commit()
 
@@ -603,12 +643,17 @@ async def node_archive_training(state: EmailState) -> dict:
         )
 
         thread = await db.get(EmailThread, state["thread_db_id"])
-        if thread.status not in (
+        if thread.status in (
+            ThreadStatus.AUTO_REPLIED,
+            ThreadStatus.REPLIED,
+            ThreadStatus.NEED_MORE_INFO,
+        ):
+            ThreadStatusMachine.transition(thread, ThreadStatus.WAITING_USER_REPLY)
+        elif thread.status not in (
             ThreadStatus.WAITING_USER_REPLY,
             ThreadStatus.CLOSED,
         ):
-            thread.status = ThreadStatus.CLOSED
-            thread.updated_at = datetime.now(timezone.utc)
+            ThreadStatusMachine.transition(thread, ThreadStatus.CLOSED)
         await db.commit()
 
     return {}
